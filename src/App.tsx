@@ -25,6 +25,24 @@ type PlaygroundRun = {
   created_at: string;
 };
 
+async function readApiBody(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text.slice(0, 500) };
+  }
+}
+
+function getApiErrorMessage(body: any, fallback: string, response?: Response) {
+  const message = body?.error || body?.message || fallback;
+  return response && !response.ok
+    ? `${message} (HTTP ${response.status})`
+    : message;
+}
+
 const DEFAULT_PROMPT = `Generate concise, specific feedback for this student's writing.
 
 Structure the feedback with:
@@ -225,8 +243,8 @@ function Playground() {
       const response = await fetch('/api/playground/runs', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || 'Could not load saved playground runs.');
+      const body = await readApiBody(response);
+      if (!response.ok) throw new Error(getApiErrorMessage(body, 'Could not load saved playground runs.', response));
       setRuns(body.runs || []);
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -263,8 +281,8 @@ function Playground() {
           aiPrompt,
         }),
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || 'Could not generate feedback.');
+      const body = await readApiBody(response);
+      if (!response.ok) throw new Error(getApiErrorMessage(body, 'Could not generate feedback.', response));
 
       const run = body.run as PlaygroundRun;
       setFeedback(run.feedback_text || '');
